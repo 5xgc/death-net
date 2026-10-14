@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 python3-minimal \
         openssh-server \
         ca-certificates curl \
-        libjson-c5 libwebsockets17 \
+        libjson-c5 libwebsockets17 libuv1 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -sSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz \
