@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: death-terminal
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: oregon
+    envVars:
+      - key: NGROK_AUTHTOKEN
+        sync: false
+      - key: SSH_ROOT_PASSWORD
+        sync: false
+      - key: DEATH_DATA_DIR
+        value: /data
+    disk:
+      name: death-data
+      mountPath: /data
+      sizeGB: 1
+    healthCheckPath: /
+    autoDeploy: true
