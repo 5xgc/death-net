@@ -23,13 +23,9 @@ RUN mkdir -p /var/run/sshd /run/sshd /root/.ssh \
     && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config \
     && echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config \
     && echo "PermitEmptyPasswords no" >> /etc/ssh/sshd_config \
-    && echo "UsePAM yes" >> /etc/ssh/sshd_config \
-    && printf '%s\n' \
-        '#%PAM-1.0' \
-        'auth       required     pam_unix.so' \
-        'account    required     pam_unix.so' \
-        'session    required     pam_unix.so' \
-        > /etc/pam.d/sshd \
+    && echo "UsePAM no" >> /etc/ssh/sshd_config \
+    && echo "ClientAliveInterval 30" >> /etc/ssh/sshd_config \
+    && echo "ClientAliveCountMax 6" >> /etc/ssh/sshd_config \
     && printf '%s\n' \
         '/bin/sh' \
         '/bin/bash' \
