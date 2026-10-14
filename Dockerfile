@@ -4,14 +4,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 python3-minimal \
         openssh-server \
         ca-certificates curl \
-        libjson-c5 libwebsockets17 libuv1 \
+        libjson-c5 libwebsockets17 libuv1 libwebsockets-evlib-uv \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -sSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz \
         | tar xz -C /usr/local/bin
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential cmake git libjson-c-dev libwebsockets-dev \
+        build-essential cmake git libjson-c-dev libwebsockets-dev libuv1-dev \
     && git clone --depth 1 https://github.com/tsl0922/ttyd.git /tmp/ttyd \
     && cd /tmp/ttyd && mkdir build && cd build \
     && cmake .. && make -j"$(nproc)" && make install \
