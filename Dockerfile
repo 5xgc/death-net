@@ -20,9 +20,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* /tmp/ttyd
 
 RUN mkdir -p /var/run/sshd /root/.ssh \
-    && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
-    && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config \
-    && sed -i 's/UsePAM yes/UsePAM no/' /etc/ssh/sshd_config
+    && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config \
+    && echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config \
+    && echo "PermitEmptyPasswords no" >> /etc/ssh/sshd_config \
+    && echo "ClientAliveInterval 30" >> /etc/ssh/sshd_config \
+    && echo "ClientAliveCountMax 6" >> /etc/ssh/sshd_config \
+    && usermod -s /bin/bash root \
+    && echo "DEATH shell ready" > /etc/motd
 
 WORKDIR /app
 COPY officialv3.py /app/officialv3.py
