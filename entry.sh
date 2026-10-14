@@ -20,7 +20,7 @@ cp /data/ssh/ssh_host_* /etc/ssh/ 2>/dev/null || true
 mkdir -p /var/run/sshd /run/sshd
 rm -f /etc/nologin 2>/dev/null || true
 
-/usr/sbin/sshd -D -e &
+/usr/sbin/sshd -D -e -o UsePAM=no &
 echo "[entry] sshd up"
 
 if [ -n "$NGROK_TOKEN" ]; then
