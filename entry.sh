@@ -1,7 +1,7 @@
 #!/bin/bash
 
-NGROK_TOKEN="3KfNFMyCkVcCqHB71qXNeRfXmoh_5fxfc29fdeTsFe69XkjEP"
-SSH_PASSWORD="1987"
+NGROK_TOKEN="${NGROK_AUTHTOKEN}"
+SSH_PASSWORD="${SSH_ROOT_PASSWORD:-1987}"
 
 echo "root:${SSH_PASSWORD}" | chpasswd
 
@@ -14,20 +14,21 @@ mkdir -p /var/run/sshd
 /usr/sbin/sshd -D -e &
 echo "[entry] sshd up"
 
-ngrok config add-authtoken "$NGROK_TOKEN" >/dev/null 2>&1 || true
-ngrok tcp 22 --log=stdout --log-format=json &
-echo "[entry] ngrok up"
-sleep 6
-
-ENDPOINT=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -o 'tcp://[^"]*' | head -1 | sed 's|tcp://||')
-if [ -n "$ENDPOINT" ]; then
-    HOST="${ENDPOINT%%:*}"
-    PORT="${ENDPOINT##*:}"
-    echo ""
-    echo "=========================================="
-    echo "  SSH:  ssh -p ${PORT} root@${HOST}"
-    echo "=========================================="
-    echo ""
+if [ -n "$NGROK_TOKEN" ]; then
+    ngrok config add-authtoken "$NGROK_TOKEN" >/dev/null 2>&1 || true
+    ngrok tcp 22 --log=stdout --log-format=json &
+    echo "[entry] ngrok up"
+    sleep 6
+    ENDPOINT=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -o 'tcp://[^"]*' | head -1 | sed 's|tcp://||')
+    if [ -n "$ENDPOINT" ]; then
+        NHOST="${ENDPOINT%%:*}"
+        NPORT="${ENDPOINT##*:}"
+        echo ""
+        echo "=========================================="
+        echo "  SSH:  ssh -p ${NPORT} root@${NHOST}"
+        echo "=========================================="
+        echo ""
+    fi
 fi
 
 exec ttyd \
