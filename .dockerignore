@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.git/
+.gitignore
+users.json
+proxies_*.json
