@@ -4,13 +4,16 @@ NGROK_TOKEN="${NGROK_AUTHTOKEN}"
 SSH_PASSWORD="${SSH_ROOT_PASSWORD:-1987}"
 
 echo "root:${SSH_PASSWORD}" | chpasswd
+usermod -s /bin/bash root >/dev/null 2>&1 || true
 
 mkdir -p /data/ssh
 [ -f /data/ssh/ssh_host_ed25519_key ] || ssh-keygen -t ed25519 -f /data/ssh/ssh_host_ed25519_key -N "" >/dev/null 2>&1
 [ -f /data/ssh/ssh_host_rsa_key ] || ssh-keygen -t rsa -b 4096 -f /data/ssh/ssh_host_rsa_key -N "" >/dev/null 2>&1
 cp /data/ssh/ssh_host_* /etc/ssh/ 2>/dev/null || true
 
-mkdir -p /var/run/sshd
+mkdir -p /var/run/sshd /run/sshd
+rm -f /etc/nologin 2>/dev/null || true
+
 /usr/sbin/sshd -D -e &
 echo "[entry] sshd up"
 
