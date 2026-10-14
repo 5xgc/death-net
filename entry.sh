@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NGROK_TOKEN="3KfNFMyCkVcCqHB7lqXNeRfXmoh_5ifxc29fdeTsFe69XkjEP"
+NGROK_TOKEN="3KfNFMyCkVcCqHB71qXNeRfXmoh_5fxfc29fdeTsFe69XkjEP"
 SSH_PASSWORD="1987"
 
 echo "root:${SSH_PASSWORD}" | chpasswd
