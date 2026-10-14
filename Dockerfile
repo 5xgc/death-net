@@ -1,5 +1,6 @@
 FROM debian:bookworm-slim
 
+# runtime deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 python3-minimal \
         openssh-server \
@@ -7,9 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libjson-c5 libwebsockets17 libuv1 libwebsockets-evlib-uv \
     && rm -rf /var/lib/apt/lists/*
 
+# ngrok agent
 RUN curl -sSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz \
         | tar xz -C /usr/local/bin
 
+# build ttyd
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake git libjson-c-dev libwebsockets-dev libuv1-dev \
     && git clone --depth 1 https://github.com/tsl0922/ttyd.git /tmp/ttyd \
@@ -19,14 +22,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/* /tmp/ttyd
 
-RUN mkdir -p /var/run/sshd /root/.ssh \
+# sshd config + minimal PAM stack (no pam_loginuid, no pam_systemd)
+RUN mkdir -p /var/run/sshd /run/sshd /root/.ssh \
     && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config \
     && echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config \
     && echo "PermitEmptyPasswords no" >> /etc/ssh/sshd_config \
     && echo "ClientAliveInterval 30" >> /etc/ssh/sshd_config \
     && echo "ClientAliveCountMax 6" >> /etc/ssh/sshd_config \
+    && echo "UsePAM yes" >> /etc/ssh/sshd_config \
+    && printf '%s\n' \
+        '#%PAM-1.0' \
+        'auth       required     pam_unix.so' \
+        'account    required     pam_unix.so' \
+        'session    required     pam_unix.so' \
+        > /etc/pam.d/sshd \
     && usermod -s /bin/bash root \
-    && echo "DEATH shell ready" > /etc/motd
+    && echo "DEATH shell ready" > /etc/motd \
+    && rm -f /etc/nologin 2>/dev/null || true
 
 WORKDIR /app
 COPY officialv3.py /app/officialv3.py
