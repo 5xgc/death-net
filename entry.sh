@@ -4,6 +4,12 @@ NGROK_TOKEN="${NGROK_AUTHTOKEN}"
 SSH_PASSWORD="${SSH_ROOT_PASSWORD:-1987}"
 
 echo "root:${SSH_PASSWORD}" | chpasswd
+
+echo "/bin/bash" > /etc/shells
+echo "/bin/sh" >> /etc/shells
+echo "/usr/bin/bash" >> /etc/shells
+echo "/usr/bin/sh" >> /etc/shells
+echo "/bin/dash" >> /etc/shells
 usermod -s /bin/bash root >/dev/null 2>&1 || true
 
 mkdir -p /data/ssh
